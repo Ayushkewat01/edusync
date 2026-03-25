@@ -1,0 +1,30 @@
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: '/api',
+  headers: { 'Content-Type': 'application/json' },
+});
+
+// Add JWT token to requests
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('edusync_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Handle auth errors
+api.interceptors.response.use(
+  (res) => res,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('edusync_token');
+      localStorage.removeItem('edusync_user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
+export default api;
