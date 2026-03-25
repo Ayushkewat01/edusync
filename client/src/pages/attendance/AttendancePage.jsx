@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { QrCode, Camera, Download, RefreshCw, CheckCircle, AlertTriangle, Users } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import useAuthStore from '../../store/authStore';
+import useSocket from '../../hooks/useSocket';
 import api from '../../services/api';
 
 export default function AttendancePage() {
@@ -18,6 +19,8 @@ function TeacherAttendance() {
   const [scanCount, setScanCount] = useState(0);
   const [records, setRecords] = useState([]);
   const [showQR, setShowQR] = useState(false);
+
+  const { socket, joinClass, leaveClass } = useSocket();
 
   useEffect(() => {
     loadClasses();
@@ -38,17 +41,31 @@ function TeacherAttendance() {
     } catch {}
   };
 
-  const loadRecords = async () => {
+  const loadRecords = useCallback(async () => {
     if (!selectedClass) return;
     try {
       const { data } = await api.get(`/attendance/${selectedClass}`);
       setRecords(data);
     } catch {}
-  };
+  }, [selectedClass]);
 
   useEffect(() => {
-    loadRecords();
-  }, [selectedClass]);
+    if (selectedClass) {
+      joinClass(selectedClass);
+      loadRecords();
+      return () => leaveClass(selectedClass);
+    }
+  }, [selectedClass, joinClass, leaveClass, loadRecords]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleUpdate = () => {
+      setScanCount(c => c + 1);
+      loadRecords();
+    };
+    socket.on('attendance-update', handleUpdate);
+    return () => socket.off('attendance-update', handleUpdate);
+  }, [socket, loadRecords]);
 
   const generateQR = async () => {
     if (!selectedClass) return;
@@ -199,17 +216,26 @@ function TeacherAttendance() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border dark:border-border-dark">
-                  <th className="text-left py-3 px-4 font-medium text-text-muted">Date</th>
+                  <th className="text-left py-3 px-4 font-medium text-text-muted w-32">Date</th>
                   <th className="text-left py-3 px-4 font-medium text-text-muted">Students Present</th>
-                  <th className="text-left py-3 px-4 font-medium text-text-muted">Rate</th>
+                  <th className="text-left py-3 px-4 font-medium text-text-muted w-24">Total</th>
                 </tr>
               </thead>
               <tbody>
                 {records.slice(0, 10).map((r) => (
                   <tr key={r._id} className="border-b border-border/50 dark:border-border-dark/50 hover:bg-muted/50 dark:hover:bg-muted-dark/50">
-                    <td className="py-3 px-4 dark:text-text-dark">{new Date(r.date).toLocaleDateString()}</td>
-                    <td className="py-3 px-4 dark:text-text-dark">{r.records?.length || 0}</td>
-                    <td className="py-3 px-4">
+                    <td className="py-3 px-4 dark:text-text-dark whitespace-nowrap">{new Date(r.date).toLocaleDateString()}</td>
+                    <td className="py-3 px-4 dark:text-text-dark">
+                      <div className="flex flex-wrap gap-1.5">
+                        {r.records?.map(rec => (
+                          <span key={rec._id || rec.studentId?._id} className="bg-primary/10 text-primary px-2 py-0.5 rounded-md text-xs font-semibold border border-primary/20">
+                            {rec.studentId?.name || 'Unknown'}
+                          </span>
+                        ))}
+                        {(!r.records || r.records.length === 0) && <span className="text-text-muted text-xs italic">No attendees</span>}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 whitespace-nowrap">
                       <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-success/10 text-success">
                         {r.records?.length || 0} present
                       </span>

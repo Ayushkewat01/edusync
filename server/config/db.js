@@ -18,14 +18,22 @@ const connectDB = async () => {
     console.log('   Falling back to in-memory database...');
   }
 
-  // Fallback to in-memory MongoDB
+  // Fallback to embedded MongoDB with persistence
   try {
     const { MongoMemoryServer } = require('mongodb-memory-server');
-    mongoServer = await MongoMemoryServer.create();
+    const path = require('path');
+    const fs = require('fs');
+    
+    const dbPath = path.join(__dirname, '../../local-mongo-data');
+    if (!fs.existsSync(dbPath)) fs.mkdirSync(dbPath, { recursive: true });
+
+    mongoServer = await MongoMemoryServer.create({
+      instance: { dbPath, storageEngine: 'wiredTiger' }
+    });
     const memUri = mongoServer.getUri();
     await mongoose.connect(memUri);
-    console.log(`✅ In-Memory MongoDB Connected`);
-    console.log(`   ⚠️  Data will be lost when server restarts`);
+    console.log(`✅ Local Embedded MongoDB Connected`);
+    console.log(`   💾 Data safely persisting to ./local-mongo-data`);
   } catch (memError) {
     console.error('❌ Failed to start in-memory MongoDB:', memError.message);
     process.exit(1);

@@ -6,13 +6,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import useAuthStore from '../../store/authStore';
 import api from '../../services/api';
 
-const mockWeeklyData = [
-  { day: 'Mon', attendance: 85 },
-  { day: 'Tue', attendance: 92 },
-  { day: 'Wed', attendance: 78 },
-  { day: 'Thu', attendance: 95 },
-  { day: 'Fri', attendance: 88 },
-];
+// Mock data removed in favor of real API data
 
 function StatCard({ icon: Icon, label, value, color, delay }) {
   return (
@@ -48,7 +42,8 @@ export default function TeacherDashboard() {
     newSubmissions: 0,
   });
   const [classes, setClasses] = useState([]);
-  const [weeklyData, setWeeklyData] = useState(mockWeeklyData);
+  const [weeklyData, setWeeklyData] = useState([]);
+  const [atRiskStudents, setAtRiskStudents] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -57,13 +52,15 @@ export default function TeacherDashboard() {
 
   const loadData = async () => {
     try {
-      const [classesRes, assignmentsRes] = await Promise.all([
+      const [classesRes, assignmentsRes, attendanceRes] = await Promise.all([
         api.get('/classes'),
-        api.get('/assignments')
+        api.get('/assignments'),
+        api.get('/attendance/my-stats')
       ]);
       
       const classesData = classesRes.data;
       const assignmentsData = assignmentsRes.data;
+      const attendanceData = attendanceRes.data;
       
       setClasses(classesData);
       
@@ -75,9 +72,13 @@ export default function TeacherDashboard() {
       // Calculate total submissions across all assignments
       const totalSubmissions = assignmentsData.reduce((sum, a) => sum + (a.submissionCount || 0), 0);
       
+      setWeeklyData(attendanceData.weeklyData || []);
+      setAtRiskStudents(attendanceData.atRisk || []);
+      
       setStats(prev => ({ 
         ...prev, 
         totalStudents,
+        todayAttendance: attendanceData.todayAttendance || 0,
         pendingAssignments: activeAssignments,
         newSubmissions: totalSubmissions
       }));
@@ -208,15 +209,11 @@ export default function TeacherDashboard() {
               <AlertTriangle className="w-5 h-5 text-warning" />
               Needs Attention
             </h2>
-            <span className="text-xs font-bold text-warning bg-warning/10 px-2.5 py-1 rounded-full">3 Students</span>
+            <span className="text-xs font-bold text-warning bg-warning/10 px-2.5 py-1 rounded-full">{atRiskStudents.length} Students</span>
           </div>
           <div className="space-y-4 flex-1">
-            <p className="text-sm text-text-muted mb-2 font-medium">Students with attendance below 75%</p>
-            {[
-              { name: 'Rahul Kumar', attendance: 62, trend: 'down' },
-              { name: 'Priya Sharma', attendance: 68, trend: 'down' },
-              { name: 'Amit Patel', attendance: 71, trend: 'up' },
-            ].map((student) => (
+            <p className="text-sm text-text-muted mb-2 font-medium">Students with attendance below 80%</p>
+            {atRiskStudents.length > 0 ? atRiskStudents.map((student, i) => (
               <div key={student.name} className="flex items-center justify-between p-4 rounded-2xl border border-border/50 dark:border-border-dark/50 bg-white/50 dark:bg-surface-dark/50 hover:bg-muted/80 dark:hover:bg-muted-dark/80 transition-all cursor-pointer">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full gradient-warning flex items-center justify-center text-white text-sm font-bold shadow-sm">
@@ -231,7 +228,9 @@ export default function TeacherDashboard() {
                   <span className="text-sm font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded-md">{student.attendance}%</span>
                 </div>
               </div>
-            ))}
+            )) : (
+              <div className="text-center py-6 text-sm text-text-muted">All students have good attendance.</div>
+            )}
           </div>
           <button className="w-full mt-4 py-2.5 rounded-xl border-2 border-dashed border-border dark:border-border-dark text-text-muted font-semibold hover:bg-muted dark:hover:bg-muted-dark hover:text-text dark:hover:text-text-dark transition-colors text-sm flex items-center justify-center gap-1">
             View All Reports <ChevronRight className="w-4 h-4" />

@@ -35,19 +35,12 @@ export default function StudentDashboard() {
   const [upcomingDeadlines, setUpcomingDeadlines] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Keep mock charts for visual flair unless backend provides
-  const attendanceData = [
-    { name: 'Present', value: 85 },
-    { name: 'Late', value: 10 },
-    { name: 'Absent', value: 5 },
-  ];
+  const [attendanceData, setAttendanceData] = useState([
+    { name: 'Present', value: 0 },
+    { name: 'Absent', value: 100 }
+  ]);
 
-  const weeklyScores = [
-    { name: 'Wk 1', score: 85 },
-    { name: 'Wk 2', score: 92 },
-    { name: 'Wk 3', score: 78 },
-    { name: 'Wk 4', score: 95 },
-  ];
+  const [weeklyScores, setWeeklyScores] = useState([]);
 
   useEffect(() => {
     loadDashboardData();
@@ -55,16 +48,25 @@ export default function StudentDashboard() {
 
   const loadDashboardData = async () => {
     try {
-      // Try to fetch real assignments
-      const { data } = await api.get('/assignments');
+      const [assignmentsRes, attendanceRes] = await Promise.all([
+         api.get('/assignments'),
+         api.get('/attendance/my-stats')
+      ]);
+      const data = assignmentsRes.data;
+      const attData = attendanceRes.data;
+
       const pending = data.filter(a => new Date(a.dueDate) > new Date() && !a.submissions?.some(s => s.studentId === user._id));
       const sorted = pending.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)).slice(0, 5);
       
       setUpcomingDeadlines(sorted);
+      
+      if (attData.attendanceData) setAttendanceData(attData.attendanceData);
+      if (attData.weeklyScores) setWeeklyScores(attData.weeklyScores);
+
       setStats(prev => ({
         ...prev,
         assignmentsDue: pending.length,
-        attendancePercentage: 85, // Mock for now
+        attendancePercentage: attData.attendancePercentage || 0,
         completed: data.length - pending.length
       }));
     } catch (error) {

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Megaphone, Plus, X, AlertCircle, Info, Zap } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
+import useSocket from '../../hooks/useSocket';
 import api from '../../services/api';
 import { timeAgo, getInitials } from '../../lib/utils';
 
@@ -18,13 +19,30 @@ export default function AnnouncementsPage() {
   const [announcements, setAnnouncements] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
 
+  const { socket, joinClass, leaveClass } = useSocket();
+
   useEffect(() => {
     loadClasses();
   }, []);
 
   useEffect(() => {
-    if (selectedClass) loadAnnouncements();
-  }, [selectedClass]);
+    if (selectedClass) {
+      joinClass(selectedClass);
+      loadAnnouncements();
+      return () => leaveClass(selectedClass);
+    }
+  }, [selectedClass, joinClass, leaveClass]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleNew = (data) => {
+      if (data.announcement) {
+        setAnnouncements(prev => [data.announcement, ...prev]);
+      }
+    };
+    socket.on('new-announcement', handleNew);
+    return () => socket.off('new-announcement', handleNew);
+  }, [socket]);
 
   const loadClasses = async () => {
     try {

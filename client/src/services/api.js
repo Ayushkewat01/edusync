@@ -19,9 +19,11 @@ api.interceptors.response.use(
   (res) => res,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('edusync_token');
-      localStorage.removeItem('edusync_user');
-      window.location.href = '/login';
+      if (!error.config.url.includes('/auth/login') && !error.config.url.includes('/auth/register')) {
+        localStorage.removeItem('edusync_token');
+        localStorage.removeItem('edusync_user');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
